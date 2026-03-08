@@ -30,7 +30,7 @@ now = datetime.now(KST)
 DATE_STR = now.strftime("%Y년 %m월 %d일")
 DATE_DAY = ["월요일","화요일","수요일","목요일","금요일","토요일","일요일"][now.weekday()]
 DATE_FILE = now.strftime("%Y-%m-%d")
-ISSUE_NUM = (now - datetime(2026, 3, 7, tzinfo=KST)).days + 1
+ISSUE_NUM = (now - datetime(2026, 3, 9, tzinfo=KST)).days + 1
 
 # ─── 경로 설정 ────────────────────────────────────────
 PROJECT_DIR = Path(__file__).parent
