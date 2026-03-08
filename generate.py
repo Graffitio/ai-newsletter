@@ -84,14 +84,73 @@ JSON 형식 (이것만 출력, 다른 텍스트 없이):
         messages=[{"role": "user", "content": prompt}],
     )
 
-    text_parts = [b.text for b in response.content if b.type == "text"]
+    # 웹 검색 후 추가 응답이 필요한 경우 처리 (tool_use → tool_result 루프)
+    messages = [{"role": "user", "content": prompt}]
+    while response.stop_reason == "tool_use":
+        # 현재 응답을 assistant 메시지로 추가
+        messages.append({"role": "assistant", "content": response.content})
+
+        # tool_use 결과를 user 메시지로 추가
+        tool_results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": "검색 완료. 결과를 바탕으로 JSON을 생성해주세요."
+                })
+        if tool_results:
+            messages.append({"role": "user", "content": tool_results})
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4000,
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            messages=messages,
+        )
+
+    # 모든 텍스트 블록에서 JSON 추출
+    text_parts = []
+    for block in response.content:
+        if hasattr(block, 'text') and block.text:
+            text_parts.append(block.text)
+
     full_text = "\n".join(text_parts)
-    clean = re.sub(r"```json\s*", "", full_text)
-    clean = re.sub(r"```\s*$", "", clean).strip()
-    json_match = re.search(r'\{[\s\S]*\}', clean)
+    print(f"   📝 응답 길이: {len(full_text)}자")
+
+    # JSON 추출 (여러 방법 시도)
+    clean = full_text.strip()
+    clean = re.sub(r"```json\s*", "", clean)
+    clean = re.sub(r"```\s*", "", clean)
+
+    # 가장 바깥쪽 { } 블록 찾기
+    brace_depth = 0
+    start_idx = None
+    for i, c in enumerate(clean):
+        if c == '{':
+            if brace_depth == 0:
+                start_idx = i
+            brace_depth += 1
+        elif c == '}':
+            brace_depth -= 1
+            if brace_depth == 0 and start_idx is not None:
+                json_str = clean[start_idx:i+1]
+                try:
+                    result = json.loads(json_str)
+                    if "main_stories" in result:
+                        return result
+                except json.JSONDecodeError:
+                    continue
+
+    # 위 방법 실패 시 정규식으로 재시도
+    json_match = re.search(r'\{[\s\S]*"main_stories"[\s\S]*\}', clean)
     if json_match:
-        clean = json_match.group()
-    return json.loads(clean)
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"JSON 파싱 실패. 응답 앞부분: {clean[:500]}")
 
 
 def build_html(news: dict) -> str:
