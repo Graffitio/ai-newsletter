@@ -42,88 +42,65 @@ def fetch_ai_news() -> dict:
     """Anthropic API로 오늘의 AI 뉴스를 수집하고 구조화된 JSON으로 반환"""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    prompt = f"""오늘은 {DATE_STR} {DATE_DAY}입니다.
+    # ── STEP 1: 웹 검색으로 뉴스 수집 ──
+    search_prompt = f"오늘은 {DATE_STR}입니다. 오늘과 어제의 AI 관련 주요 뉴스를 웹에서 검색해서 최대한 많이 알려주세요. 각 뉴스의 제목, 출처, 핵심 내용을 정리해주세요."
 
-오늘자 AI 관련 최신 뉴스를 웹 검색해서 아래 JSON 형식으로 정리해 주세요.
-반드시 오늘 또는 어제 보도된 실제 뉴스만 포함하세요.
-
-JSON 형식 (이것만 출력, 다른 텍스트 없이):
-{{
-  "main_stories": [
-    {{
-      "tag": "카테고리 (반도체/모델/정책/연구/에이전트/기업/투자 중 택1)",
-      "tag_emoji": "카테고리에 맞는 이모지 1개",
-      "source": "출처 (예: CNBC · Reuters)",
-      "title": "한국어 제목 (30자 내외)",
-      "body": "한국어 요약 (3~4문장, 핵심 수치 포함)"
-    }}
-  ],
-  "quick_bites": [
-    "한 줄 뉴스 문장 (핵심 키워드를 <strong> 태그로 감싸기)"
-  ],
-  "insight": "오늘 뉴스들의 공통 흐름을 분석한 인사이트 (4~5문장, 핵심 키워드는 <strong> 태그)",
-  "glossary": [
-    {{
-      "term": "용어",
-      "en": "영문 설명 또는 약어 풀이",
-      "definition": "쉬운 한국어 설명 (2~3문장)"
-    }}
-  ]
-}}
-
-규칙:
-- main_stories는 정확히 6개, quick_bites 5개, glossary 3개
-- 첫 번째 main_story가 가장 중요한 TOP STORY
-- 모든 내용은 한국어, 출처는 실제 매체명
-- JSON만 출력 (마크다운 래핑 없이)"""
-
-    response = client.messages.create(
+    search_response = client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=4000,
         tools=[{"type": "web_search_20250305", "name": "web_search"}],
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": search_prompt}],
     )
 
-    # 웹 검색 후 추가 응답이 필요한 경우 처리 (tool_use → tool_result 루프)
-    messages = [{"role": "user", "content": prompt}]
-    while response.stop_reason == "tool_use":
-        # 현재 응답을 assistant 메시지로 추가
-        messages.append({"role": "assistant", "content": response.content})
-
-        # tool_use 결과를 user 메시지로 추가
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": "검색 완료. 결과를 바탕으로 JSON을 생성해주세요."
-                })
-        if tool_results:
-            messages.append({"role": "user", "content": tool_results})
-
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4000,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
-            messages=messages,
-        )
-
-    # 모든 텍스트 블록에서 JSON 추출
-    text_parts = []
-    for block in response.content:
+    # 검색 결과 텍스트 추출
+    search_text = ""
+    for block in search_response.content:
         if hasattr(block, 'text') and block.text:
-            text_parts.append(block.text)
+            search_text += block.text + "\n"
 
-    full_text = "\n".join(text_parts)
-    print(f"   📝 응답 길이: {len(full_text)}자")
+    print(f"   📝 검색 결과: {len(search_text)}자")
 
-    # JSON 추출 (여러 방법 시도)
+    # ── STEP 2: 검색 결과를 JSON으로 변환 (웹 검색 없이) ──
+    json_prompt = f"""아래는 오늘({DATE_STR} {DATE_DAY})의 AI 뉴스 검색 결과입니다.
+
+<news>
+{search_text}
+</news>
+
+위 뉴스를 아래 JSON 형식으로 변환하세요.
+반드시 유효한 JSON만 출력하세요. JSON 앞뒤에 어떤 텍스트도 넣지 마세요.
+```json 같은 마크다운도 넣지 마세요.
+
+{{"main_stories":[{{"tag":"카테고리","tag_emoji":"이모지","source":"출처","title":"제목","body":"요약"}}],"quick_bites":["한줄뉴스"],"insight":"인사이트","glossary":[{{"term":"용어","en":"영문","definition":"설명"}}]}}
+
+규칙:
+- main_stories 정확히 6개 (첫번째가 TOP STORY)
+- quick_bites 정확히 5개 (핵심 키워드는 <strong> 태그)
+- glossary 정확히 3개 (오늘 뉴스에 등장한 용어)
+- insight는 4~5문장 (핵심 키워드는 <strong> 태그)
+- tag는 반도체/모델/정책/연구/에이전트/기업/투자 중 택1
+- 모든 내용은 한국어"""
+
+    json_response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4000,
+        messages=[{"role": "user", "content": json_prompt}],
+    )
+
+    # JSON 추출
+    full_text = ""
+    for block in json_response.content:
+        if hasattr(block, 'text') and block.text:
+            full_text += block.text
+
+    print(f"   📝 JSON 응답: {len(full_text)}자")
+
+    # 정리
     clean = full_text.strip()
     clean = re.sub(r"```json\s*", "", clean)
     clean = re.sub(r"```\s*", "", clean)
 
-    # 가장 바깥쪽 { } 블록 찾기
+    # { } 블록 추출
     brace_depth = 0
     start_idx = None
     for i, c in enumerate(clean):
@@ -138,19 +115,12 @@ JSON 형식 (이것만 출력, 다른 텍스트 없이):
                 try:
                     result = json.loads(json_str)
                     if "main_stories" in result:
+                        print(f"   ✅ JSON 파싱 성공!")
                         return result
                 except json.JSONDecodeError:
                     continue
 
-    # 위 방법 실패 시 정규식으로 재시도
-    json_match = re.search(r'\{[\s\S]*"main_stories"[\s\S]*\}', clean)
-    if json_match:
-        try:
-            return json.loads(json_match.group())
-        except json.JSONDecodeError:
-            pass
-
-    raise ValueError(f"JSON 파싱 실패. 응답 앞부분: {clean[:500]}")
+    raise ValueError(f"JSON 파싱 실패. 응답 앞부분:\n{clean[:500]}")
 
 
 def build_html(news: dict) -> str:
