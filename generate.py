@@ -46,7 +46,7 @@ def fetch_ai_news() -> dict:
     search_prompt = f"오늘은 {DATE_STR}입니다. 오늘과 어제의 AI 관련 주요 뉴스를 웹에서 검색해서 최대한 많이 알려주세요. 각 뉴스의 제목, 출처, 핵심 내용을 정리해주세요."
 
     search_response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-haiku-4-5-20251001",
         max_tokens=4000,
         tools=[{"type": "web_search_20250305", "name": "web_search"}],
         messages=[{"role": "user", "content": search_prompt}],
@@ -82,7 +82,7 @@ def fetch_ai_news() -> dict:
 - 모든 내용은 한국어"""
 
     json_response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-haiku-4-5-20251001",
         max_tokens=4000,
         messages=[{"role": "user", "content": json_prompt}],
     )
