@@ -196,6 +196,7 @@ def build_html(news: dict) -> str:
   .issue-meta{{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.12em;text-transform:uppercase;font-weight:600;margin-bottom:8px}}
   .header-title{{font-size:32px;font-weight:900;color:var(--navy);letter-spacing:-.03em;line-height:1.2}}
   .header-sub{{font-size:14px;color:var(--text-sec);margin-top:6px;font-weight:300}}
+  .header-author{{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:8px;font-weight:400;letter-spacing:.03em}}
   .header-date{{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted);text-align:right;padding-top:50px;line-height:1.5}}
   .section-label{{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:10px;margin-bottom:16px;color:var(--navy)}}
   .section-label::after{{content:'';flex:1;height:1px;background:var(--border)}}
@@ -251,6 +252,7 @@ def build_html(news: dict) -> str:
       <div class="issue-meta">Vol.1 — Issue #{ISSUE_NUM:03d}</div>
       <h1 class="header-title">오늘의 AI 브리핑</h1>
       <p class="header-sub">매일 아침, AI 업계에서 가장 중요한 소식만 골라 전해 드립니다.</p>
+      <p class="header-author">by Ian Jung</p>
     </div>
     <div class="header-date">{DATE_STR}<br>{DATE_DAY}</div>
   </div>
