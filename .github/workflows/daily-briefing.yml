@@ -5,8 +5,7 @@ name: 4lynx AI Daily Briefing
 
 on:
   schedule:
-    - cron: '40 21 * * *
-0-4'
+    - cron: '40 21 * * 0-4'
   workflow_dispatch:
 
 permissions:
